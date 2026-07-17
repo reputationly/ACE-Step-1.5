@@ -1,0 +1,63 @@
+# ACE-Step-1.5 arm64 A100 image — derived from the LightX2V CUDA+torch base.
+#
+# Same recipe as index-tts/Dockerfile.lightx2v: reuse LightX2V's aarch64 CUDA
+# torch base (PyPI's aarch64 torch is CPU-only, so a plain nvidia/cuda base
+# can't get GPU), COPY the ACE-Step app, and pip-install ONLY the remaining
+# runtime deps with torch/torchaudio/torchvision constraint-frozen from the base
+# so pip can't swap them for CPU wheels.
+#
+# NOTE: this bets ACE-Step-1.5 runs on the base's torch 2.11.0+cu128 (ACE-Step's
+# requirements.txt asks torch 2.10.0+cu130 on aarch64). This is the cheap-reuse
+# path (design doc P2 risk #1). If it fails at runtime, fall back to a dedicated
+# cu130 arm64 base. arm A100 has no flash-attn wheel -> run the 5Hz LM with
+# lm_backend=pt (nano-vllm/flash-attn path is x86-only).
+ARG BASE_IMAGE=arronlee/lightx2v:arm64-cu128-a100-base
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    TOKENIZERS_PARALLELISM=false \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    ACESTEP_MODE=api \
+    ACESTEP_API_HOST=0.0.0.0 \
+    ACESTEP_API_PORT=8001 \
+    ACESTEP_LLM_BACKEND=pt
+
+WORKDIR /app
+COPY . /app
+
+# Lock ONLY the base's CUDA torch stack so pip can't replace it with CPU wheels.
+# Dropped vs requirements.txt:
+#   - torch/torchvision/torchaudio  : provided by the base (constraint-frozen)
+#   - torchcodec                    : no aarch64 wheel (requirements already gates it out); use soundfile/ffmpeg
+#   - flash-attn                    : x86-only; the LM runs with lm_backend=pt
+#   - peft / lycoris-lora / lightning / tensorboard : training-only, not imported by inference/API
+#   - mlx / mlx-lm / triton-windows : macOS / Windows only
+# numba 0.63 tolerates the base's numpy 2.x, so numpy is left free (unlike IndexTTS).
+RUN python3 -m pip freeze 2>/dev/null | grep -iE '^(torch|torchvision|torchaudio)==' > /tmp/constraints.txt || true; \
+    echo "=== pinned torch from base ==="; cat /tmp/constraints.txt; echo "=============================="; \
+    python3 -m pip install --no-cache-dir -c /tmp/constraints.txt \
+      "transformers>=4.51.0,<4.58.0" diffusers "safetensors==0.7.0" \
+      "gradio==6.2.0" "matplotlib>=3.7.5" "scipy>=1.10.1" "soundfile>=0.13.1" \
+      "loguru>=0.7.3" "einops>=0.8.1" "accelerate>=1.12.0" \
+      "fastapi>=0.110.0" "uvicorn[standard]>=0.27.0" \
+      "numba>=0.63.1" "vector-quantize-pytorch>=1.27.15" torchao toml modelscope xxhash \
+      python-dotenv
+
+# nano-vllm is a local package (acestep/third_parts/nano-vllm). Install it without
+# deps so it can't drag in vllm/flash-attn; the pt LM backend doesn't need its
+# CUDA kernels but some imports reference the package.
+RUN python3 -m pip install --no-cache-dir --no-deps -e acestep/third_parts/nano-vllm || \
+    echo "[build] nano-vllm editable install skipped (pt backend does not require it)"
+
+# Build-time smoke: torch+CUDA present, core imports resolve (fail fast on a bad base).
+RUN python3 -c "import torch; assert torch.version.cuda, 'no CUDA torch'; print('torch', torch.__version__)" && \
+    python3 -c "import transformers, diffusers, soundfile, fastapi, uvicorn; print('core imports OK')"
+
+EXPOSE 8001 7860
+# Default: ACE-Step REST API (in-memory queue -> workers=1). Model paths + checkpoints
+# dir are injected at runtime via ACESTEP_CONFIG_PATH / ACESTEP_LM_MODEL_PATH and the
+# checkpoints bind-mount (host==container), exactly like the smoke harness does.
+CMD ["python3", "-m", "uvicorn", "acestep.api_server:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
