@@ -1,9 +1,11 @@
 """GPUStack built-in-backend async task protocol over ACE-Step's job store.
 
-Exposes the endpoints the GPUStack facade + sweeper poll — ``/v1/tasks/audio/``,
-``/v1/tasks/{id}/status``, ``/v1/tasks/queue/status``, ``DELETE /v1/tasks/{id}``,
-and ``/ready`` — reusing the existing ``job_queue`` / ``_JobStore`` / worker
-unchanged; only the wire protocol and the NFS output placement are new.
+Exposes the endpoints the GPUStack facade + sweeper poll — ``/v1/tasks/music/``
+(alias ``/v1/tasks/audio/``), ``/v1/tasks/{id}/status``, ``/v1/tasks/queue/status``,
+``DELETE /v1/tasks/{id}``, and ``/ready`` — reusing the existing ``job_queue`` /
+``_JobStore`` / worker unchanged; only the wire protocol and the NFS output
+placement are new. The facade posts to ``/v1/tasks/{kind}/`` and the MUSIC
+category resolves to kind ``music``.
 
 Deploy with eager model init (``ACESTEP_NO_INIT=false``) so ``/ready`` reflects true
 readiness. The default is lazy-load: ``_initialized`` only flips on the first task,
@@ -63,8 +65,12 @@ def register_tasks_facade_routes(
             return {"ready": True}
         return JSONResponse({"ready": False}, status_code=503)
 
+    # The GPUStack facade posts to /v1/tasks/{engine_kind}/; the MUSIC category
+    # resolves to kind "music", so /v1/tasks/music/ is the primary path. /audio/
+    # is kept as an alias for manual testing and forward compatibility.
+    @app.post("/v1/tasks/music/")
     @app.post("/v1/tasks/audio/")
-    async def submit_audio_task(request: Request):
+    async def submit_task(request: Request):
         """Create a music-generation task; returns task_id + save_result_path."""
         body = await request.json()
         save_result_path = body.get("save_result_path")
