@@ -15,6 +15,7 @@ from acestep.api.http.model_service_routes import register_model_service_routes
 from acestep.api.http.query_result_route import register_query_result_route
 from acestep.api.http.reinitialize_route import register_reinitialize_route
 from acestep.api.http.release_task_route import register_release_task_route
+from acestep.api.http.tasks_facade_routes import register_tasks_facade_routes
 from acestep.api.http.sample_format_routes import register_sample_format_routes
 from acestep.api.train_api_service import register_training_api_routes
 from acestep.openrouter_adapter import create_openrouter_router
@@ -156,4 +157,12 @@ def configure_api_routes(
         result_key_prefix=result_key_prefix,
         task_timeout_seconds=task_timeout_seconds,
         log_buffer=log_buffer,
+    )
+
+    # GPUStack built-in-backend async task protocol (see tasks_facade_routes.py).
+    # Reuses the same store/queue; adds /v1/tasks/* + /ready for facade scheduling.
+    register_tasks_facade_routes(
+        app=app,
+        store=store,
+        request_model_cls=request_model_cls,
     )
