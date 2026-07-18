@@ -5,9 +5,11 @@ Exposes the endpoints the GPUStack facade + sweeper poll — ``/v1/tasks/audio/`
 and ``/ready`` — reusing the existing ``job_queue`` / ``_JobStore`` / worker
 unchanged; only the wire protocol and the NFS output placement are new.
 
-Deploy with startup model init (``ACESTEP_INIT_SERVICE=true`` / ``ACESTEP_NO_INIT=
-false``) so ``/ready`` reflects true readiness: lazy-load leaves ``/health`` at 200
-before models exist, which would let the facade route traffic too early.
+Deploy with eager model init (``ACESTEP_NO_INIT=false``) so ``/ready`` reflects true
+readiness. The default is lazy-load: ``_initialized`` only flips on the first task,
+so ``/ready`` would stay 503 forever until something is submitted — deadlocking the
+facade health check (verified on-node 2026-07-18). ``ACESTEP_INIT_SERVICE`` is the
+container entrypoint's flag and has no effect when uvicorn is launched directly.
 """
 
 from __future__ import annotations
