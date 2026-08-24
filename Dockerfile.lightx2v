@@ -14,6 +14,11 @@
 # 2026-08-24 起默认 cu130 + Python 3.12 base(见 LightX2V 的
 # dockerfiles/Dockerfile_aarch64_cu130)。ACE-Step 上游 requires-python 是
 # ">=3.11,<3.13",旧 base 的 Python 3.10 本就属违规,这次升级顺带修掉。
+#
+# 注意:这里用 ACR 前缀,而 .github/workflows/build-arm64.yml 用 arronlee/(Docker Hub)——
+# 是有意不同,不是笔误:本地构建多在国内,拉 ACR 快;CI runner 在国外,拉 Docker Hub 快
+# (实测 3.5min vs 17min)。两处指向的是同一个 base(digest 相同)。
+#
 # 回滚:--build-arg BASE_IMAGE=arronlee/lightx2v:arm64-cu128-a100-base
 ARG BASE_IMAGE=crpi-xzr81d0490mc3794.cn-shanghai.personal.cr.aliyuncs.com/reputationly/lightx2v:arm64-cu130-a100-base
 FROM ${BASE_IMAGE}
