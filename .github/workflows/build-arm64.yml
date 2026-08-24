@@ -18,8 +18,13 @@ on:
   workflow_dispatch:
     inputs:
       base_image:
-        description: 'CUDA+torch base on Docker Hub (fast pull from GitHub runners; same base LightX2V/IndexTTS use)'
-        default: 'arronlee/lightx2v:arm64-cu128-a100-base'
+        # 2026-08-24 起默认切到 cu130 + Python 3.12 base。ACE-Step 上游
+        # requires-python = ">=3.11,<3.13",旧 base 的 3.10 本就属违规,升级顺带修掉。
+        # 这里指向 ACR(Docker Hub 尚无 cu130 base),代价是 runner 拉取较慢;
+        # 想恢复速度先跑 LightX2V 的 "Sync base image (ACR -> Docker Hub)" 再改回 arronlee/ 前缀。
+        # 回滚:传 arronlee/lightx2v:arm64-cu128-a100-base
+        description: 'CUDA+torch base (默认 cu130+py3.12,在 ACR;回滚传 arronlee/lightx2v:arm64-cu128-a100-base)'
+        default: 'crpi-xzr81d0490mc3794.cn-shanghai.personal.cr.aliyuncs.com/reputationly/lightx2v:arm64-cu130-a100-base'
         required: true
       dest_tag:
         description: 'Floating ACR tag to publish'

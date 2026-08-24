@@ -11,7 +11,11 @@
 # path (design doc P2 risk #1). If it fails at runtime, fall back to a dedicated
 # cu130 arm64 base. arm A100 has no flash-attn wheel -> run the 5Hz LM with
 # lm_backend=pt (nano-vllm/flash-attn path is x86-only).
-ARG BASE_IMAGE=arronlee/lightx2v:arm64-cu128-a100-base
+# 2026-08-24 起默认 cu130 + Python 3.12 base(见 LightX2V 的
+# dockerfiles/Dockerfile_aarch64_cu130)。ACE-Step 上游 requires-python 是
+# ">=3.11,<3.13",旧 base 的 Python 3.10 本就属违规,这次升级顺带修掉。
+# 回滚:--build-arg BASE_IMAGE=arronlee/lightx2v:arm64-cu128-a100-base
+ARG BASE_IMAGE=crpi-xzr81d0490mc3794.cn-shanghai.personal.cr.aliyuncs.com/reputationly/lightx2v:arm64-cu130-a100-base
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
