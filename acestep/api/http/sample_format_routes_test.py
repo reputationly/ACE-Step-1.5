@@ -29,6 +29,22 @@ def _verify_token_from_request(body: dict, authorization: str | None = None) -> 
     raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+def _create_sample(**_kwargs) -> SimpleNamespace:
+    """Return a ``create_sample``-shaped result for the ``/v1/create_sample`` route."""
+
+    return SimpleNamespace(
+        success=True,
+        caption="created-caption",
+        lyrics="created-lyrics",
+        bpm=120,
+        keyscale="C",
+        duration=12,
+        timesignature="4/4",
+        language="en",
+        error=None,
+        status_message=None,
+    )
+
 def _get_endpoint(app: FastAPI, path: str, method: str):
     """Return endpoint callable matching a route path/method pair."""
 
@@ -89,6 +105,7 @@ class SampleFormatRoutesTests(unittest.TestCase):
             env_bool=lambda *_: False,
             to_int=lambda v, d=None: int(v) if v is not None else d,
             to_float=lambda v, d=None: float(v) if v is not None else d,
+            create_sample_fn=_create_sample,
         )
         return app
 
