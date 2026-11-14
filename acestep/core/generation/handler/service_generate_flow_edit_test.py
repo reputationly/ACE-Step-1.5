@@ -131,18 +131,26 @@ class FlowEditOverlayDispatchTests(unittest.TestCase):
 
 
 class CoverStillRunsLmTests(unittest.TestCase):
-    """The overlay layers on cover; cover stays in skip_lm_tasks (LM Phase 1
+    """The overlay layers on cover; cover stays in the LM-skip set (LM Phase 1
     skipped because cover already extracts codes from the ref audio)."""
 
     def test_no_edit_in_skip_lm_tasks(self):
+        """The LM-skip gate must delegate to the shared task set, which keeps
+        cover/cover-nofsq/repaint/extract and never lists the removed "edit"."""
+
         from pathlib import Path
+
+        from acestep.inference import DIRECT_CONDITIONING_TASKS
+
         src = (Path(__file__).resolve().parents[3] / "inference.py").read_text()
         self.assertIn(
-            'skip_lm_tasks = {"cover", "cover-nofsq", "repaint", "extract"}',
+            "skip_lm_tasks = DIRECT_CONDITIONING_TASKS",
             src,
-            "edit task is removed; skip_lm_tasks should no longer mention it",
+            "LM-skip gate must read the shared task set, not a per-call literal",
         )
-        self.assertNotIn('"edit"', src.split("skip_lm_tasks")[1].split("\n")[0])
+        for task_type in ("cover", "cover-nofsq", "repaint", "extract"):
+            self.assertIn(task_type, DIRECT_CONDITIONING_TASKS)
+        self.assertNotIn("edit", DIRECT_CONDITIONING_TASKS)
 
 
 if __name__ == "__main__":
