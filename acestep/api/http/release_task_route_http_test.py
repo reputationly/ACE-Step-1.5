@@ -19,10 +19,10 @@ class _FakeParser:
 
         self._values = values
 
-    def get(self, key: str):
-        """Return raw value for ``key`` from parser payload."""
+    def get(self, key: str, default=None):
+        """Return raw value for ``key``, falling back to ``default``."""
 
-        return self._values.get(key)
+        return self._values.get(key, default)
 
     def str(self, key: str, default: str = "") -> str:
         """Return string value for ``key`` with default fallback."""

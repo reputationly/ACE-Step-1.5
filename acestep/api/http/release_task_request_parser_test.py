@@ -19,10 +19,10 @@ class _FakeParser:
 
         self._values = values
 
-    def get(self, key: str):
-        """Return raw value for ``key`` from parser payload."""
+    def get(self, key: str, default=None):
+        """Return raw value for ``key``, falling back to ``default``."""
 
-        return self._values.get(key)
+        return self._values.get(key, default)
 
     def str(self, key: str, default: str = "") -> str:
         """Return string value for ``key`` with default fallback."""
@@ -220,10 +220,10 @@ class ReleaseTaskRequestParserTests(unittest.TestCase):
                     return []
                 return value if isinstance(value, list) else [value]
 
-            def get(self, key: str):
-                """Return scalar value for the requested key."""
+            def get(self, key: str, default=None):
+                """Return scalar value for the requested key, else ``default``."""
 
-                return self._values.get(key)
+                return self._values.get(key, default)
 
         async def _save_upload_to_temp(_upload, *, prefix: str) -> str:
             """Return deterministic temp file path for uploaded payload."""
