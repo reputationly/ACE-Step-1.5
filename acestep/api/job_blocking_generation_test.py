@@ -25,6 +25,7 @@ class JobBlockingGenerationTests(unittest.TestCase):
         selected_handler = SimpleNamespace(device="cuda")
         prepared = SimpleNamespace(
             caption="cap",
+            global_caption="global cap",
             lyrics="lyr",
             bpm=120,
             key_scale="C major",
@@ -105,6 +106,7 @@ class JobBlockingGenerationTests(unittest.TestCase):
         selected_handler = SimpleNamespace(device="cuda")
         prepared = SimpleNamespace(
             caption="cap",
+            global_caption="",
             lyrics="lyr",
             bpm=None,
             key_scale="",
