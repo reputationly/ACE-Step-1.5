@@ -5,6 +5,7 @@ This module provides the public ``generate_music`` entry point extracted from
 """
 
 import gc
+import os
 import traceback
 from typing import Any, Dict, List, Optional, Union
 
@@ -177,6 +178,20 @@ class GenerateMusicMixin:
             "error": msg,
         }
 
+    def _resolve_dcw_enabled(self, dcw_enabled: Optional[bool]) -> bool:
+        """Resolve an explicit or model-aware DCW setting.
+
+        Args:
+            dcw_enabled: Explicit caller choice, or ``None`` for the model
+                family default.
+
+        Returns:
+            The explicit choice, or the loaded configuration's Turbo setting.
+        """
+        if dcw_enabled is not None:
+            return bool(dcw_enabled)
+        return bool(self.is_turbo_model())
+
     def generate_music(
         self,
         captions: str,
@@ -209,7 +224,7 @@ class GenerateMusicMixin:
         sampler_mode: str = "euler",
         velocity_norm_threshold: float = 0.0,
         velocity_ema_factor: float = 0.0,
-        dcw_enabled: bool = True,
+        dcw_enabled: Optional[bool] = None,
         dcw_mode: str = "double",
         dcw_scaler: float = 0.05,
         dcw_high_scaler: float = 0.02,
@@ -245,8 +260,8 @@ class GenerateMusicMixin:
             guidance_scale: CFG guidance value.
             seed: Optional explicit seed from caller/UI.
             infer_method: Diffusion method name.
-            dcw_enabled: Enable Differential Correction in Wavelet domain
-                (CVPR 2026, arXiv:2604.16044) at each sampler step.  Off by default.
+            dcw_enabled: Enable Differential Correction in Wavelet domain.
+                ``None`` selects the default for the loaded model family.
             dcw_mode: DCW mode — ``"low"`` / ``"high"`` / ``"double"`` / ``"pix"``.
             dcw_scaler: Low-band (or single-band) correction strength; modulated
                 by ``t_curr`` inside the sampler, so the effective strength decays
@@ -282,6 +297,15 @@ class GenerateMusicMixin:
             instruction=instruction,
         )
 
+        # Neutralize stale cover-only params for text2music; preserve them for
+        # source-audio tasks. All entry points (single/batch/API) pass through
+        # here (issue #1271).
+        audio_cover_strength, cover_noise_strength = self._neutralize_cover_only_params(
+            task_type=task_type,
+            audio_cover_strength=audio_cover_strength,
+            cover_noise_strength=cover_noise_strength,
+        )
+
         # Turbo models bake guidance into the distillation process and do not
         # use CFG.  Forcing guidance_scale to 1.0 avoids double-application of
         # guidance that produces noise or NaN/Inf on float16 (see issue #927).
@@ -292,6 +316,7 @@ class GenerateMusicMixin:
                 guidance_scale,
             )
             guidance_scale = 1.0
+        dcw_enabled = self._resolve_dcw_enabled(dcw_enabled)
 
         # When LoRA is active, verify all decoder parameters are on the
         # expected device and dtype.  CPU-offload round-trips can leave PEFT
@@ -371,13 +396,26 @@ class GenerateMusicMixin:
                 repainting_end=repainting_end,
                 chunk_mask_mode=chunk_mask_mode,
             )
-            vram_error = self._vram_preflight_check(
-                actual_batch_size=actual_batch_size,
-                audio_duration=audio_duration,
-                guidance_scale=guidance_scale,
-            )
-            if vram_error is not None:
-                return vram_error
+            if torch.cuda.is_available():
+                gc.collect()
+                torch.cuda.empty_cache()
+                skip_preflight = os.environ.get(
+                    "ACESTEP_SKIP_VRAM_PREFLIGHT", "",
+                ).lower() in ("1", "true", "yes")
+                if skip_preflight:
+                    logger.warning(
+                        "[generate_music] VRAM pre-flight check skipped via "
+                        "ACESTEP_SKIP_VRAM_PREFLIGHT=1. If generation OOMs, "
+                        "unset this variable to re-enable the safety check."
+                    )
+                else:
+                    vram_error = self._vram_preflight_check(
+                        actual_batch_size=actual_batch_size,
+                        audio_duration=audio_duration,
+                        guidance_scale=guidance_scale,
+                    )
+                    if vram_error is not None:
+                        return vram_error
 
             injection_ratio, resolved_cf_frames, resolved_wav_cf = (
                 _resolve_repaint_config(repaint_mode, repaint_strength)
