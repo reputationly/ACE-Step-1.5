@@ -74,6 +74,13 @@ jobs:
           provenance: false
           build-args: |
             BASE_IMAGE=${{ github.event.inputs.base_image }}
+          # OCI labels so a node can be identified from the image itself, without
+          # digging through release notes. lx2v-节点运维手册 §2.5 ⑦ names nodes by
+          # these two labels; without them the engine check has to fall back to
+          # comparing image IDs (same strictness, but no commit/build provenance).
+          labels: |
+            org.opencontainers.image.version=${{ steps.tags.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
           tags: |
             ${{ env.ACR_REPO }}:${{ github.event.inputs.dest_tag }}
             ${{ env.ACR_REPO }}:${{ steps.tags.outputs.version }}
